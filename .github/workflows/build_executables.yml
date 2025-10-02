@@ -1,12 +1,16 @@
 # Name of the workflow
 name: Create Release and Upload Binaries
 
-# **CHANGE 1: This workflow now runs ONLY on pushing a new tag (e.g., v1.0, v1.2.1)**
+# Trigger on tags that start with 'v'
 on:
   push:
     tags:
-      - "v*" # Trigger on tags that start with 'v'
-  workflow_dispatch: # Allows manual runs from the Actions tab for testing
+      - "v*"
+  workflow_dispatch:
+
+# **FIX: Add write permissions for creating a release**
+permissions:
+  contents: write
 
 jobs:
   # JOB 1: Build the executables for Windows, macOS, and Linux
@@ -38,20 +42,17 @@ jobs:
           name: TaskManager-${{ matrix.os }}
           path: dist/TaskManager*
 
-  # **CHANGE 2: A new job to create the release AFTER all builds are successful**
+  # JOB 2: A new job to create the release AFTER all builds are successful
   release:
-    # This job depends on the 'build' job finishing successfully
     needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          # The destination directory for the downloaded files
           path: release_assets/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # This will upload all files from the 'release_assets' directory
           files: release_assets/**/*
