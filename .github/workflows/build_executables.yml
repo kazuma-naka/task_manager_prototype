@@ -1,53 +1,57 @@
-# Name of the GitHub Actions workflow
-name: Build Python Executables
+# Name of the workflow
+name: Create Release and Upload Binaries
 
-# Controls when the workflow will run
+# **CHANGE 1: This workflow now runs ONLY on pushing a new tag (e.g., v1.0, v1.2.1)**
 on:
   push:
-    branches: ["main"] # Runs on pushes to the main branch
-  pull_request:
-    branches: ["main"] # Runs on pull requests targeting the main branch
-  workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+    tags:
+      - "v*" # Trigger on tags that start with 'v'
+  workflow_dispatch: # Allows manual runs from the Actions tab for testing
 
 jobs:
+  # JOB 1: Build the executables for Windows, macOS, and Linux
   build:
-    # Use a matrix strategy to build for Windows, macOS, and Linux
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-
-    # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
-
     steps:
-      # 1. Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Sets up Python on the runner
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12" # Use the same Python version you developed with
+          python-version: "3.12"
 
-      # 3. Installs project dependencies from requirements.txt
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 4. Runs PyInstaller to create the executable
-      #    --onefile: Bundles everything into a single executable
-      #    --windowed: Prevents a console window from appearing on launch
-      #    --name: Sets the name of the final executable
       - name: Build with PyInstaller
-        run: |
-          pyinstaller --name "TaskManager" --onefile --windowed task_manager.py
+        run: pyinstaller --name "TaskManager" --onefile --windowed task_manager.py
 
-      # 5. Uploads the executable as a downloadable artifact
-      #    The artifact name will be like "TaskManager-windows-latest"
-      - name: Upload Artifact
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: TaskManager-${{ matrix.os }}
-          path: dist/TaskManager* # Uploads the executable from the 'dist' folder
+          path: dist/TaskManager*
+
+  # **CHANGE 2: A new job to create the release AFTER all builds are successful**
+  release:
+    # This job depends on the 'build' job finishing successfully
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # The destination directory for the downloaded files
+          path: release_assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # This will upload all files from the 'release_assets' directory
+          files: release_assets/**/*
