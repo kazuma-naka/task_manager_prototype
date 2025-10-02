@@ -8,7 +8,7 @@ on:
       - "v*"
   workflow_dispatch:
 
-# **FIX: Add write permissions for creating a release**
+# Add write permissions for creating a release
 permissions:
   contents: write
 
@@ -36,11 +36,24 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller --name "TaskManager" --onefile --windowed task_manager.py
 
+      # **FIX 1: Rename assets to be unique for each OS and zip the macOS .app**
+      - name: Prepare Release Assets
+        run: |
+          if [ $RUNNER_OS == 'Windows' ]; then
+            mv dist/TaskManager.exe dist/TaskManager-windows.exe
+          elif [ $RUNNER_OS == 'Linux' ]; then
+            mv dist/TaskManager dist/TaskManager-linux
+          elif [ $RUNNER_OS == 'macOS' ]; then
+            zip -r dist/TaskManager-macos.zip dist/TaskManager.app
+          fi
+        shell: bash
+
+      # **FIX 2: Update the path to upload all files in the dist folder**
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: TaskManager-${{ matrix.os }}
-          path: dist/TaskManager*
+          path: dist/*
 
   # JOB 2: A new job to create the release AFTER all builds are successful
   release:
@@ -55,4 +68,5 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          # The glob pattern will now find the uniquely named files
           files: release_assets/**/*
